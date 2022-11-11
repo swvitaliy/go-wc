@@ -1,0 +1,125 @@
+package main
+
+import (
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"unicode"
+	"unicode/utf8"
+)
+
+const bufSize int = 4096
+
+func isAlphaDigit(r rune) bool {
+	return r >= '0' && r <= '9' || unicode.IsLetter(r)
+}
+
+func skipWhitespaces(s []rune, i int, size int) (int, int) {
+	l := len(s)
+	for i < l {
+		if isAlphaDigit(s[i]) {
+			break
+		}
+		rs := utf8.RuneLen(s[i])
+		if rs <= 0 {
+			panic("rune size less than 0")
+		}
+		size += rs
+		i++
+	}
+	return i, size
+}
+
+func readWord(s []rune, i int, size int, word *[]rune) (int, int) {
+	l := len(s)
+	j := i
+	for j < l {
+		if !isAlphaDigit(s[j]) {
+			break
+		}
+		rs := utf8.RuneLen(s[i])
+		if rs <= 0 {
+			panic("rune size less than 0")
+		}
+		size += rs
+		j++
+	}
+	*word = append(*word, s[i:j]...)
+	return j, size
+}
+
+func main() {
+	file, err := os.Open("words.txt")
+	if err != nil {
+		panic("can't open file \"words.txt\"")
+	}
+	defer file.Close()
+
+	var r io.Reader = file
+	buf := make([]byte, bufSize+utf8.UTFMax)
+	wc := make(map[string]int)
+	var n int
+	var curWord []rune
+	var text []rune
+	var tail []byte
+	for c := 0; ; c++ {
+		n, err = r.Read(buf[utf8.UTFMax:])
+		if err == io.EOF {
+			if len(curWord) > 0 {
+				wc[string(curWord)]++
+				curWord = []rune{}
+			}
+			break
+		}
+
+		if err != nil {
+			log.Fatalf("error during reading the file \"words.txt\"" + err.Error())
+		}
+
+		var k = len(tail) // length of previous tail
+
+		// copy prev tail to head of current buf
+		for bi, b := range tail {
+			buf[utf8.UTFMax-k+bi] = b
+		}
+
+		tBuf := buf[utf8.UTFMax-k : utf8.UTFMax+n]
+
+		// take cur tail
+		r, ts := utf8.DecodeLastRune(tBuf)
+		if r == utf8.RuneError {
+			tail = tBuf[len(tBuf)-ts:]
+			//log.Printf("tail size=%d", ts)
+		}
+
+		text = []rune(string(tBuf))
+		l := len(text)
+		i := 0
+		s := 0
+
+		for i < l {
+			var j int
+			j, s = skipWhitespaces(text, i, s)
+			if i != j && len(curWord) > 0 {
+				wc[string(curWord)]++
+				curWord = []rune{}
+			}
+
+			i = j
+			var prev = append([]rune{}, curWord...)
+			i, s = readWord(text, i, s, &curWord)
+			if string(curWord) == "Ђепень" {
+				log.Fatalf("found %d %s %d %d\n", i, string(prev), wc["ст"], c)
+			}
+			if i < l {
+				wc[string(curWord)]++
+				curWord = []rune{}
+			}
+		}
+	}
+
+	for w, c := range wc {
+		fmt.Printf("%s %d\n", w, c)
+	}
+}

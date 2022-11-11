@@ -1,0 +1,111 @@
+package main
+
+import (
+	"io"
+	"os"
+
+	// "bufio"
+	"fmt"
+	"unicode"
+)
+
+const bufSize int = 4096
+
+func isAlphaDigit(r rune) bool {
+	return r >= '0' && r <= '9' || unicode.IsLetter(r)
+}
+
+func skipWhitespaces(s []rune, i int) int {
+	l := len(s)
+	for ; i < l; i++ {
+		if isAlphaDigit(s[i]) {
+			break
+		}
+	}
+	return i
+}
+
+func readWord(s []rune, i int, word *[]rune) int {
+	l := len(s)
+	j := i
+	for ; j < l; j++ {
+		if !isAlphaDigit(s[j]) {
+			break
+		}
+	}
+	*word = append(*word, s[i:j]...)
+	return j
+}
+
+func main() {
+	file, err := os.Open("words.txt")
+	if err != nil {
+		panic("can't open file \"words.txt\"")
+	}
+	defer file.Close()
+
+	var r io.Reader = file
+	buf := make([]byte, bufSize)
+	wc := make(map[string]int)
+	var n int
+	var curWord []rune = []rune{}
+	var text []rune
+	for c := 0; ; c++ {
+		n, err = r.Read(buf)
+		if err == io.EOF {
+			if string(curWord) == "епень" || string(curWord) == "ст" {
+				panic("found 0")
+			}
+			if len(curWord) > 0 {
+				wc[string(curWord)]++
+				curWord = []rune{}
+			}
+			break
+		}
+
+		if err != nil {
+			panic("error during reading the file \"words.txt\"" + err.Error())
+		}
+
+		text = []rune(string(buf[:n]))
+		l := len(text)
+		i := 0
+
+		if c == 15 {
+			fmt.Printf("c=%d %s\n", c, string(text))
+			panic("")
+		}
+
+		if text[l-2] == 'с' && text[l-1] == 'т' {
+			panic("found 3")
+		}
+
+		for i < l {
+			var j = skipWhitespaces(text, i)
+			if string(curWord) == "епень" || string(curWord) == "ст" {
+				panic("found 1")
+			}
+			if i != j && len(curWord) > 0 {
+				wc[string(curWord)]++
+				curWord = []rune{}
+			}
+
+			i = j
+			var prev = append([]rune{}, curWord...)
+			i = readWord(text, i, &curWord)
+			if string(curWord) == "епень" || string(curWord) == "ст" {
+				fmt.Printf("%d %s %d %d\n", i, string(prev), wc["ст"], c)
+				panic("found 2")
+			}
+
+			if i < l {
+				wc[string(curWord)]++
+				curWord = []rune{}
+			}
+		}
+	}
+
+	for w, c := range wc {
+		fmt.Printf("%s %d\n", w, c)
+	}
+}
